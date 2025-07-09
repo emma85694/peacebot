@@ -1,86 +1,85 @@
-const TelegramBot = require('node-telegram-bot-api');
-require('dotenv').config();
+import logging
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackContext,
+    filters,
+    ConversationHandler,
+    CallbackQueryHandler  # This was missing
+)
 
-// Initialize Telegram bot with your token
-const bot = new TelegramBot('7603920406:AAGVdKBCy0j9tPoIarYx-HZFMewLDDeC2_c', { polling: true });
+# Bot configuration
+BOT_TOKEN = "7603920406:AAGVdKBCy0j9tPoIarYx-HZFMewLDDeC2_c"
+CHANNEL_LINK = "https://t.me/dawgs_on_sol"
+GROUP_LINK = "https://t.me/xtradeaiga"
+TWITTER_LINK = "https://x.com/DAWGS_On_Sol"
 
-console.log('🌻 Miss Peace Airdrop Bot Started...');
+# Conversation state
+GET_WALLET = 1
 
-// Handle /start command
-bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  
-  bot.sendMessage(
-    chatId,
-    `🌻 <b>Welcome to the Miss Peace Airdrop!</b> 🌻\n\n` +
-    `Complete these simple tasks to qualify:\n\n` +
-    `1️⃣ JOIN OUR TELEGRAM CHANNEL:\n` +
-    `👉 <a href="https://t.me/dawgs_on_sol">DAWGS on Sol</a>\n\n` +
-    `2️⃣ JOIN OUR TELEGRAM GROUP:\n` +
-    `👉 <a href="https://t.me/xtradeaig">XTrade AI Group</a>\n\n` +
-    `3️⃣ FOLLOW OUR TWITTER:\n` +
-    `👉 <a href="https://x.com/DAWGS_On_Sol">@DAWGS_On_Sol</a>\n\n` +
-    `✨ After completing all tasks, click 👉 /submit to claim your 100 SOL reward!`,
-    {
-      parse_mode: 'HTML',
-      disable_web_page_preview: true
-    }
-  );
-});
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-// Handle /submit command
-bot.onText(/\/submit/, (msg) => {
-  const chatId = msg.chat.id;
-  
-  bot.sendMessage(
-    chatId,
-    `🪙 <b>STEP 4: Enter your Solana wallet address</b>\n\n` +
-    `This is where we'll send your 100 SOL reward!\n\n` +
-    `<i>Note: This is a test environment</i>`,
-    {
-      parse_mode: 'HTML',
-      reply_markup: {
-        force_reply: true
-      }
-    }
-  );
-});
+async def start(update: Update, context: CallbackContext) -> None:
+    keyboard = [
+        [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)],
+        [InlineKeyboardButton("👥 Join Group", url=GROUP_LINK)],
+        [InlineKeyboardButton("🐦 Follow Twitter", url=TWITTER_LINK)],
+        [InlineKeyboardButton("💳 Submit SOL Wallet", callback_data="submit_wallet")]
+    ]
+    
+    await update.message.reply_text(
+        "🐶 *DAWGS Airdrop Bot*\n\n"
+        "Complete these steps:\n"
+        "1. Join our Telegram channels\n"
+        "2. Follow our Twitter\n"
+        "3. Submit your SOL wallet\n\n"
+        "⚠️ *TEST BOT - No real SOL*",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
 
-// Handle wallet address submission
-bot.on('message', (msg) => {
-  if (!msg.text || !msg.reply_to_message) return;
-  
-  const chatId = msg.chat.id;
-  const walletAddress = msg.text.trim();
-  
-  if (msg.reply_to_message.text.includes('STEP 4: Enter your Solana wallet address')) {
-    if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(walletAddress)) {
-      bot.sendMessage(
-        chatId,
-        `🎉 <b>CONGRATULATIONS!</b> 🎉\n\n` +
-        `You've successfully passed the Miss Peace Airdrop call!\n\n` +
-        `💸 <b>100 SOL</b> is on its way to:\n` +
-        `<code>${walletAddress}</code>\n\n` +
-        `⏳ Estimated arrival: 5-10 minutes\n\n` +
-        `✨ <i>"Well done, hope you didn't cheat the system!"</i>\n\n` +
-        `⚠️ <b>Note:</b> This is a testing bot - no actual SOL will be sent.`,
-        {
-          parse_mode: 'HTML',
-          disable_web_page_preview: true
-        }
-      );
-    } else {
-      bot.sendMessage(
-        chatId,
-        `❌ <b>Invalid Solana address!</b>\n` +
-        `Please check and try again with /submit`,
-        { parse_mode: 'HTML' }
-      );
-    }
-  }
-});
+async def submit_wallet(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("📥 Send me your Solana wallet address (starts with SOL):")
+    return GET_WALLET
 
-// Handle unknown commands
-bot.onText(/\/(?!start|submit).+/, (msg) => {
-  bot.sendMessage(msg.chat.id, `❌ Unknown command. Use /start to begin.`);
-});
+async def handle_wallet(update: Update, context: CallbackContext) -> int:
+    wallet = update.message.text.strip()
+    
+    if not wallet.startswith("SOL"):
+        await update.message.reply_text("❌ Invalid SOL address! Must start with 'SOL'. Try again:")
+        return GET_WALLET
+    
+    await update.message.reply_text(
+        "🎉 *Congratulations!*\n\n"
+        "💸 100 SOL will be sent to your wallet!\n"
+        "Hope you didn't cheat! 😉\n\n"
+        "🐶 Thanks for testing DAWGS!",
+        parse_mode="Markdown"
+    )
+    return ConversationHandler.END
+
+def main() -> None:
+    app = Application.builder().token(BOT_TOKEN).build()
+    
+    conv_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(submit_wallet, pattern="^submit_wallet$")],
+        states={GET_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_wallet)]},
+        fallbacks=[]
+    )
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(conv_handler)
+    
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
